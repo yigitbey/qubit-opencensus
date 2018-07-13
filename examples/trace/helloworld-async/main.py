@@ -39,12 +39,11 @@ middleware = SanicMiddleware(
 async def root(req):
    tracer = asyncio_context.get_opencensus_tracer()
    with tracer.span(name='span1') as span1:
-        with tracer.span(name='span2') as span2:
+       with tracer.span(name='span2') as span2:
             async with aiohttp.ClientSession() as session:
-                print(session)
-                #async with session.get("http://ifconfig.co") as response:
                 async with session.get("https://slashdot.org") as response:
-                    print(response)
+                #async with session.get("http://ifconfig.co") as response:
+                #async with session.get("http://ifconfig.convict") as response:
                     return json({"hello": "world"})
 
 

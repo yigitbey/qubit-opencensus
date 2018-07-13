@@ -16,7 +16,7 @@ import logging
 import aioredis
 import wrapt
 
-from opencensus.trace import asyncio_context
+from qubit.opencensus.trace import asyncio_context
 
 log = logging.getLogger(__name__)
 

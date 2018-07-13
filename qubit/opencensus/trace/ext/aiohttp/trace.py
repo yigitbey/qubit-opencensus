@@ -15,7 +15,7 @@
 import logging
 import aiohttp
 
-from opencensus.trace import asyncio_context
+from qubit.opencensus.trace import asyncio_context
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def wrap_aiohttp(aiohttp_func):
             _tracer = asyncio_context.get_opencensus_tracer()
             _span = _tracer.start_span()
             _span.name = '[aiohttp]{}'.format(params.method)
-            _tracer.add_attribute_to_current_span('aiohttp/url', params.url)
+            _tracer.add_attribute_to_current_span('aiohttp/url', str(params.url))
             return
 
         async def on_request_end(session, context, params):
