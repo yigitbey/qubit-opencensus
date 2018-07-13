@@ -171,8 +171,6 @@ class SanicMiddleware(object):
 
         try:
             span_context = self.propagator.from_headers(request.headers)
-            print("span_context: . ${}", span_context)
-
             tracer = tracer_module.ContextTracer(
                 span_context=span_context,
                 exporter=self.exporter)
@@ -183,9 +181,11 @@ class SanicMiddleware(object):
             span.name = '[{}]{}'.format(
                 request.method,
                 request.url)
-            tracer.add_attribute_to_current_span(
+            span.add_attribute(
                 HTTP_METHOD, request.method)
-            tracer.add_attribute_to_current_span(HTTP_URL, request.url)
+            span.add_attribute(HTTP_URL, request.url)
+            request['tracer'] = tracer
+            request['span'] = span
             asyncio_context.set_opencensus_tracer(tracer)
         except Exception:  # pragma: NO COVER
             log.error('Failed to trace request', exc_info=True)
@@ -198,11 +198,15 @@ class SanicMiddleware(object):
             return response
 
         try:
-            tracer = asyncio_context.get_opencensus_tracer()
-            tracer.add_attribute_to_current_span(
+            tracer = request['tracer']
+            span = request['span']
+            span.add_attribute(
                 HTTP_STATUS_CODE,
                 str(response.status))
-            tracer.end_span()
+            if response.status >= 500:
+                span.add_attribute('error', True)
+
+            span.finish()
             tracer.finish()
         except Exception:  # pragma: NO COVER
             log.error('Failed to trace request', exc_info=True)
@@ -213,24 +217,13 @@ class SanicMiddleware(object):
             return
 
         try:
-            tracer = asyncio_context.get_opencensus_tracer()
-
+            tracer = request['tracer']
+            span = request['span']
             if exception is not None:
-                span = asyncio_context.get_current_span()
-                span.status = status.Status(
-                    code=code_pb2.UNKNOWN,
-                    message=str(exception)
-                )
-                # try attaching the stack trace to the span, only populated if
-                # the app has 'PROPAGATE_EXCEPTIONS', 'DEBUG', or 'TESTING'
-                # enabled
-                exc_type, _, exc_traceback = sys.exc_info()
-                if exc_traceback is not None:
-                    span.stack_trace = stack_trace.StackTrace.from_traceback(
-                        exc_traceback
-                    )
+                span.add_attribute('error', True)
+                span.add_attribute('error.message', str(exception))
 
-            tracer.end_span()
+            span.finish()
             tracer.finish()
         except Exception:  # pragma: NO COVER
             log.error('Failed to trace request', exc_info=True)

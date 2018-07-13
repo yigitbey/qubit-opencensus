@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import asyncio
 import logging
 
 from opencensus.trace.span_context import SpanContext
@@ -172,3 +173,31 @@ class ContextTracer(base.Tracer):
         ]
 
         return span_datas
+
+
+def span(name=None):
+    def span_decorator(func):
+        async def process(func, *args, **params):
+            if asyncio.iscoroutinefunction(func):
+                return await func(*args, **params)
+            else:
+                return func(*args, **params)
+        async def helper(*args, **params):
+            _tracer = asyncio_context.get_opencensus_tracer()
+            _span = _tracer.start_span()
+            _span.name = name if name is not None else func.__name__
+
+            try:
+                result = await process(func, *args, **params)
+                _tracer.end_span()
+                return result
+            except Exception as e:
+                _tracer.add_attribute_to_current_span('error', True)
+                _tracer.add_attribute_to_current_span('error.message', str(e))
+                _tracer.end_span()
+                raise e
+
+        return helper
+    return span_decorator
+
+

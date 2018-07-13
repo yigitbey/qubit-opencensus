@@ -35,12 +35,18 @@ def trace_integration(tracer=None):
 async def wrap_execute(wrapped, instance, args, kwargs):
     """Wrap the session function to trace it."""
     command = args[0]
-    _tracer = execution_context.get_opencensus_tracer()
+    _tracer = asyncio_context.get_opencensus_tracer()
     _span = _tracer.start_span()
     _span.name = '[aioredis]{}'.format(command)
 
     # Add the requests url to attributes
-    result = await wrapped(*args, **kwargs)
+    try:
+        result = await wrapped(*args, **kwargs)
+        _span.finish()
+    except Exception as e: 
+        _span.add_attribute('error', True)
+        _span.add_attribute('error.message', str(e))
+        _span.finish()
+        raise e
 
-    _tracer.end_span()
     return result

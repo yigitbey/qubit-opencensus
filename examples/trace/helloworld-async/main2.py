@@ -23,7 +23,7 @@ loop.set_task_factory(context.task_factory)
 
 sampler = probability.ProbabilitySampler(rate=0.5)
 propagator = jaeger_format.JaegerFormatPropagator()
-exporter = jaeger_exporter.JaegerExporter(service_name="recs")
+exporter = jaeger_exporter.JaegerExporter(service_name="thing")
 
 aiohttp_integration(propagator=propagator)
 aioredis_integration(tracer=None)
@@ -38,7 +38,6 @@ middleware = SanicMiddleware(
 
 @asyncio_context_tracer.span()
 async def somefunc():
-    raise ("boo")
     return "yay"
 
 @app.route('/')
@@ -48,13 +47,13 @@ async def root(req):
    with tracer.span(name='span1') as span1:
        with tracer.span(name='span2') as span2:
             async with aiohttp.ClientSession() as session:
-                async with session.get("https://slashdot.org") as response:
-                    return json({"hello": "world"})
-
+                async with session.get("http://localhost:8080") as response:
+                    print (response)
+                    return json({"hello": await somefunc()})
 
 
 def main():
-    server = app.create_server(host='0.0.0.0', port=8080)
+    server = app.create_server(host='0.0.0.0', port=8081)
     loop = asyncio.get_event_loop()
     loop.set_task_factory(context.task_factory)
     task = asyncio.ensure_future(server)

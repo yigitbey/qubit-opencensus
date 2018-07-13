@@ -26,33 +26,48 @@ def trace_integration(tracer=None, propagator=None):
     """Wrap the requests library to trace it."""
     log.info('Integrated module: {}'.format(MODULE_NAME))
     # Wrap the aiohttp functions
-    aiohttp_func = getattr(aiohttp.ClientSession, '__init__')
-    wrapped = wrap_aiohttp(aiohttp_func)
+    aiohttp_func = getattr(aiohttp.ClientSession, '_request')
+    wrapped = wrap_aiohttp(aiohttp_func, propagator=propagator)
     setattr(aiohttp.ClientSession, aiohttp_func.__name__, wrapped)
 
 
-def wrap_aiohttp(aiohttp_func):
+def wrap_aiohttp(aiohttp_func, propagator=None):
     """Wrap the aiohttp function to trace it."""
-    def call(*args, **kwargs):
-        async def on_request_start(session, context, params):
+    async def call(*args, **kwargs):
             _tracer = asyncio_context.get_opencensus_tracer()
             _span = _tracer.start_span()
-            _span.name = '[aiohttp]{}'.format(params.method)
-            _tracer.add_attribute_to_current_span('aiohttp/url', str(params.url))
-            return
+            _span.name = '[aiohttp]{}'.format(args[1])
+            _span.add_attribute('aiohttp/url', str(args[2]))
 
-        async def on_request_end(session, context, params):
-            _tracer = asyncio_context.get_opencensus_tracer()
-            _tracer.add_attribute_to_current_span(
-                'aiohttp/status_code', str(params.response.status))
-            _tracer.end_span()
-            return
+            if propagator is not None:
+                span_context = _span.context_tracer.span_context
+                headers = propagator.to_headers(span_context)
+                if 'headers' not in kwargs:
+                    kwargs['headers'] = {}
+                for k, v in headers.items():
+                    kwargs['headers'][k] = v
 
-        trace_config = aiohttp.TraceConfig()
-        trace_config.on_request_start.append(on_request_start)
-        trace_config.on_request_end.append(on_request_end)
-        kwargs['trace_configs'] = [trace_config]
+            try:
+                response = await aiohttp_func(*args, **kwargs)
 
-        return aiohttp_func(*args, **kwargs)
+                _span.add_attribute(
+                    'aiohttp/status_code', str(response.status))
+                _span.add_attribute(
+                    'aiohttp/status_reason', str(response.reason))
+
+                if response.status >= 500:
+                    _span.add_attribute(
+                        'aiohttp/error', True)
+
+                _span.finish()
+
+                return response
+            except Exception as e:
+                _span.add_attribute(
+                    'aiohttp/error', True)
+                _span.add_attribute(
+                    'aiohttp/error,message', str(e))
+                _span.finish()
+                raise e
 
     return call
