@@ -1,0 +1,4 @@
+aiohttp==3.3.2
+aioredis==3.3.2
+mock==2.0.0
+sanic==0.7.0
