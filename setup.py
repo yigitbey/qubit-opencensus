@@ -22,7 +22,7 @@ extras = {}
 install_requires = []
 
 packages = [
-    package for package in setuptools.find_packages()
+    package for package in find_packages()
     if package.startswith('qubit')]
 
 namespaces = ['qubit']
@@ -31,7 +31,7 @@ setup(
     name='qubit-opencensus',
     version='0.1.0',
     author='Qubit',
-    author_email='',
+    author_email='tristan@qubit.com',
     classifiers=[
         'Intended Audience :: Developers',
         'Development Status :: 3 - Alpha',
