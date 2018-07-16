@@ -25,7 +25,7 @@ _CURRENT_SPAN_KEY = 'opencensus.io/current-span'
 
 
 def get_opencensus_tracer():
-    return context.get(_TRACER_KEY, default=noop_tracer.NoopTracer())
+    return context.get(_TRACER_KEY, default=None)
 
 
 def set_opencensus_tracer(tracer):

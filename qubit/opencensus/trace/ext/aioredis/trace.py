@@ -35,6 +35,9 @@ async def wrap_execute(wrapped, instance, args, kwargs):
     """Wrap the session function to trace it."""
     command = args[0]
     _tracer = asyncio_context.get_opencensus_tracer()
+    if _tracer is None:
+        return await wrapped(*args, **kwargs)
+
     _span = _tracer.start_span()
     _span.name = '[aioredis]{}'.format(command)
 

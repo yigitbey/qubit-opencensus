@@ -35,6 +35,9 @@ def wrap_aiohttp(aiohttp_func, propagator=None):
     """Wrap the aiohttp function to trace it."""
     async def call(*args, **kwargs):
             _tracer = asyncio_context.get_opencensus_tracer()
+            if _tracer is None:
+                return await aiohttp_func(*args, **kwargs)
+
             _span = _tracer.start_span()
             _span.name = '[aiohttp]{}'.format(args[1])
             _span.add_attribute('aiohttp/url', str(args[2]))
