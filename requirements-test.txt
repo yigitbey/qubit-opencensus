@@ -1,4 +1,11 @@
 aiohttp==3.3.2
-aioredis==3.3.2
+aioredis==1.1.0
+aiotask-context==0.5.0
+
 mock==2.0.0
+opencensus==0.1.5
+pytest==3.6.3
+pytest_asyncio==0.8.0
+pytest-cov==2.5.1
 sanic==0.7.0
+thrift==0.10.0

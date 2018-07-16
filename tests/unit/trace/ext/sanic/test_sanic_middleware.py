@@ -15,29 +15,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import pytest
 import unittest
+
+import asyncio
+
+import aiotask_context as context
 
 import sanic
 from sanic.exceptions import SanicException
 from sanic.response import json
 import mock
-from google.rpc import code_pb2
 
-from opencensus.trace import execution_context
 from opencensus.trace import span_data
 from opencensus.trace import stack_trace
 from opencensus.trace import status
-from opencensus.trace.exporters import print_exporter, stackdriver_exporter, \
-    zipkin_exporter
-from opencensus.trace.ext.sanic import sanic_middleware
-from opencensus.trace.propagation import google_cloud_format
+from opencensus.trace.exporters import print_exporter, jaeger_exporter
 from opencensus.trace.samplers import always_off, always_on, ProbabilitySampler
 from opencensus.trace.tracers import base
 from opencensus.trace.tracers import noop_tracer
+from qubit.opencensus.trace import asyncio_context
+from qubit.opencensus.trace.ext.sanic import sanic_middleware
+from qubit.opencensus.trace.propagation import jaeger_format
+
+
+@pytest.yield_fixture()
+def event_loop():
+    loop = asyncio.new_event_loop()
+    loop.set_task_factory(context.task_factory)
+    yield loop
+    loop.close()
 
 
 class TestSanicMiddleware(unittest.TestCase):
-
     @staticmethod
     def create_app():
         app = sanic.Sanic(__name__)
@@ -56,11 +66,9 @@ class TestSanicMiddleware(unittest.TestCase):
 
         return app
 
-    def tearDown(self):
-        from opencensus.trace import execution_context
 
-        execution_context.clear()
-
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_constructor_default(self):
         app = mock.Mock(config={})
         middleware = sanic_middleware.SanicMiddleware(app=app)
@@ -72,8 +80,10 @@ class TestSanicMiddleware(unittest.TestCase):
         assert isinstance(middleware.exporter, print_exporter.PrintExporter)
         assert isinstance(
             middleware.propagator,
-            google_cloud_format.GoogleCloudFormatPropagator)
+            jaeger_format.JaegerFormatPropagator)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_constructor_explicit(self):
         app = mock.Mock(config={})
         sampler = mock.Mock()
@@ -91,6 +101,8 @@ class TestSanicMiddleware(unittest.TestCase):
         self.assertIs(middleware.exporter, exporter)
         self.assertIs(middleware.propagator, propagator)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_init_app(self):
         app = mock.Mock()
 
@@ -99,13 +111,15 @@ class TestSanicMiddleware(unittest.TestCase):
 
         self.assertIs(middleware.app, app)
 
-    def test_init_app_config_stackdriver_exporter(self):
+    @pytest.mark.asyncio
+    @asyncio.coroutine
+    def test_init_app_config_jaeger_exporter(self):
         app = mock.Mock()
         app.config = {
             'OPENCENSUS_TRACE': {
                 'SAMPLER': ProbabilitySampler,
-                'EXPORTER': stackdriver_exporter.StackdriverExporter,
-                'PROPAGATOR': google_cloud_format.GoogleCloudFormatPropagator,
+                'EXPORTER': jaeger_exporter.JaegerExporter,
+                'PROPAGATOR': jaeger_format.JaegerFormatPropagator,
             },
             'OPENCENSUS_TRACE_PARAMS': {
                 'BLACKLIST_PATHS': ['/_ah/health'],
@@ -117,24 +131,26 @@ class TestSanicMiddleware(unittest.TestCase):
             },
         }
 
-        class StackdriverExporter(object):
+        class JaegerExporter(object):
             def __init__(self, *args, **kwargs):
                 pass
 
         middleware = sanic_middleware.SanicMiddleware(
-            exporter=StackdriverExporter
+            exporter=JaegerExporter
         )
         middleware.init_app(app)
 
         self.assertIs(middleware.app, app)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_init_app_config_zipkin_exporter(self):
         app = mock.Mock()
         app.config = {
             'OPENCENSUS_TRACE': {
                 'SAMPLER': ProbabilitySampler,
                 'EXPORTER': zipkin_exporter.ZipkinExporter,
-                'PROPAGATOR': google_cloud_format.GoogleCloudFormatPropagator,
+                'PROPAGATOR': jaeger_format.JaegerFormatPropagator,
             },
             'OPENCENSUS_TRACE_PARAMS': {
                 'ZIPKIN_EXPORTER_SERVICE_NAME': 'my_service',
@@ -148,8 +164,10 @@ class TestSanicMiddleware(unittest.TestCase):
 
         self.assertIs(middleware.app, app)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test__do_trace_request(self):
-        from opencensus.trace import execution_context
+        from qubit.opencensus.trace import asyncio_context
 
         sanic_trace_header = 'X_CLOUD_TRACE_CONTEXT'
         trace_id = '2dd43a1d6b2549c6bc2a1a54c2fc0b05'
@@ -164,7 +182,7 @@ class TestSanicMiddleware(unittest.TestCase):
 
         with context:
             app.preprocess_request()
-            tracer = execution_context.get_opencensus_tracer()
+            tracer = asyncio_context.get_opencensus_tracer()
             self.assertIsNotNone(tracer)
 
             span = tracer.current_span()
@@ -180,6 +198,8 @@ class TestSanicMiddleware(unittest.TestCase):
             span_context = tracer.span_context
             self.assertEqual(span_context.trace_id, trace_id)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test__before_request_blacklist(self):
         sanic_trace_header = 'X_CLOUD_TRACE_CONTEXT'
         trace_id = '2dd43a1d6b2549c6bc2a1a54c2fc0b05'
@@ -194,13 +214,15 @@ class TestSanicMiddleware(unittest.TestCase):
 
         with context:
             app.preprocess_request()
-            tracer = execution_context.get_opencensus_tracer()
+            tracer = asyncio_context.get_opencensus_tracer()
             assert isinstance(tracer, noop_tracer.NoopTracer)
 
             span = tracer.current_span()
 
             assert isinstance(span, base.NullContextManager)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_header_encoding(self):
         # The test is for detecting the encoding compatibility issue in
         # Python2 and Python3 and what sanic does for encoding the headers.
@@ -221,7 +243,7 @@ class TestSanicMiddleware(unittest.TestCase):
 
         with context:
             app.preprocess_request()
-            tracer = execution_context.get_opencensus_tracer()
+            tracer = asyncio_context.get_opencensus_tracer()
             self.assertIsNotNone(tracer)
 
             span = tracer.current_span()
@@ -237,6 +259,8 @@ class TestSanicMiddleware(unittest.TestCase):
             span_context = tracer.span_context
             self.assertNotEqual(span_context.trace_id, trace_id)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_header_is_none(self):
         app = self.create_app()
         sanic_middleware.SanicMiddleware(app=app)
@@ -245,7 +269,7 @@ class TestSanicMiddleware(unittest.TestCase):
 
         with context:
             app.preprocess_request()
-            tracer = execution_context.get_opencensus_tracer()
+            tracer = asyncio_context.get_opencensus_tracer()
             self.assertIsNotNone(tracer)
 
             span = tracer.current_span()
@@ -258,6 +282,8 @@ class TestSanicMiddleware(unittest.TestCase):
             self.assertEqual(span.attributes, expected_attributes)
             assert isinstance(span.parent_span, base.NullContextManager)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test__after_request_not_sampled(self):
         sanic_trace_header = 'X_CLOUD_TRACE_CONTEXT'
         trace_id = '2dd43a1d6b2549c6bc2a1a54c2fc0b05'
@@ -274,6 +300,8 @@ class TestSanicMiddleware(unittest.TestCase):
 
         self.assertEqual(response.status, 200)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test__after_request_sampled(self):
         sanic_trace_header = 'X_CLOUD_TRACE_CONTEXT'
         trace_id = '2dd43a1d6b2549c6bc2a1a54c2fc0b05'
@@ -289,6 +317,8 @@ class TestSanicMiddleware(unittest.TestCase):
 
         self.assertEqual(response.status, 200)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test__after_request_blacklist(self):
         sanic_trace_header = 'X_CLOUD_TRACE_CONTEXT'
         trace_id = '2dd43a1d6b2549c6bc2a1a54c2fc0b05'
@@ -302,11 +332,13 @@ class TestSanicMiddleware(unittest.TestCase):
             '/_ah/health',
             headers={sanic_trace_header: sanic_trace_id})
 
-        tracer = execution_context.get_opencensus_tracer()
+        tracer = asyncio_context.get_opencensus_tracer()
 
         self.assertEqual(response.status, 200)
         assert isinstance(tracer, noop_tracer.NoopTracer)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_teardown_include_exception(self):
         mock_exporter = mock.MagicMock()
         app = self.create_app()
@@ -318,9 +350,10 @@ class TestSanicMiddleware(unittest.TestCase):
         exported_spandata = mock_exporter.export.call_args[0][0][0]
         self.assertIsInstance(exported_spandata, span_data.SpanData)
         self.assertIsInstance(exported_spandata.status, status.Status)
-        self.assertEqual(exported_spandata.status.code, code_pb2.UNKNOWN)
         self.assertEqual(exported_spandata.status.message, 'error')
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_teardown_include_exception_and_traceback(self):
         mock_exporter = mock.MagicMock()
         app = self.create_app()
@@ -331,7 +364,6 @@ class TestSanicMiddleware(unittest.TestCase):
         exported_spandata = mock_exporter.export.call_args[0][0][0]
         self.assertIsInstance(exported_spandata, span_data.SpanData)
         self.assertIsInstance(exported_spandata.status, status.Status)
-        self.assertEqual(exported_spandata.status.code, code_pb2.UNKNOWN)
         self.assertEqual(exported_spandata.status.message, 'error')
         self.assertIsInstance(
             exported_spandata.stack_trace, stack_trace.StackTrace

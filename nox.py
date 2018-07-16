@@ -35,7 +35,7 @@ def unit(session, py):
     session.run(
         'py.test',
         '--quiet',
-        '--cov=opencensus',
+        '--cov=qubit.opencensus',
         '--cov-append',
         '--cov-config=.coveragerc',
         '--cov-report=',
@@ -61,7 +61,7 @@ def lint(session):
 def lint_setup_py(session):
     """Verify that setup.py is valid (including RST check)."""
     session.interpreter = 'python3.6'
-    session.install('docutils', 'pygments')
+    session.install('pygments')
     session.run(
         'python', 'setup.py', 'check', '--restructuredtext', '--strict')
 
@@ -76,23 +76,3 @@ def cover(session):
     session.install('coverage', 'pytest-cov')
     session.run('coverage', 'report', '--show-missing', '--fail-under=100')
     session.run('coverage', 'erase')
-
-
-@nox.session
-def docs(session):
-    """Build the docs."""
-
-    # Build docs against the latest version of Python, because we can.
-    session.interpreter = 'python3.6'
-
-    # Set the virtualenv dirname.
-    session.virtualenv_dirname = 'docs'
-
-    # Install Sphinx and also all of the google-cloud-* packages.
-    session.chdir(os.path.realpath(os.path.dirname(__file__)))
-    session.install('-r', os.path.join('docs', 'requirements.txt'))
-
-    # Build the docs!
-    session.run(
-        'bash', os.path.join('.', 'scripts', 'update_docs.sh'))
-

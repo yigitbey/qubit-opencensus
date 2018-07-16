@@ -12,37 +12,48 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
 
+import asyncio
+import pytest
+import unittest
 import mock
 
-from opencensus.trace.tracers import context_tracer
-from opencensus.trace import span
-from opencensus.trace import execution_context
+import aiotask_context as context
 
+from opencensus.trace import span
+from qubit.opencensus.trace import asyncio_context
+from qubit.opencensus.trace.tracers import asyncio_context_tracer
+
+
+@pytest.yield_fixture()
+def event_loop():
+    loop = asyncio.new_event_loop()
+    loop.set_task_factory(context.task_factory)
+    yield loop
+    loop.close()
 
 class TestContextTracer(unittest.TestCase):
-
-    def tearDown(self):
-        execution_context.clear()
-
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_constructor_defaults(self):
         from opencensus.trace import span_context
         from opencensus.trace.exporters import print_exporter
 
-        tracer = context_tracer.ContextTracer()
+        tracer = asyncio_context_tracer.ContextTracer()
 
         assert isinstance(tracer.span_context, span_context.SpanContext)
         assert isinstance(tracer.exporter, print_exporter.PrintExporter)
         self.assertEqual(tracer._spans_list, [])
         self.assertEqual(tracer.root_span_id, tracer.span_context.span_id)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_constructor_explicit(self):
         from opencensus.trace import span_context
 
         span_context = span_context.SpanContext()
         exporter = mock.Mock()
-        tracer = context_tracer.ContextTracer(
+        tracer = asyncio_context_tracer.ContextTracer(
             exporter=exporter, span_context=span_context)
 
         self.assertIs(tracer.span_context, span_context)
@@ -51,10 +62,12 @@ class TestContextTracer(unittest.TestCase):
         self.assertEqual(tracer._spans_list, [])
         self.assertEqual(tracer.root_span_id, span_context.span_id)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_finish_without_spans(self):
         spans = []
         trace_id = '6e0c63257de34c92bf9efcd03927272e'
-        tracer = context_tracer.ContextTracer()
+        tracer = asyncio_context_tracer.ContextTracer()
         tracer.trace_id = trace_id
 
         trace = tracer.finish()
@@ -62,21 +75,27 @@ class TestContextTracer(unittest.TestCase):
         self.assertIsNone(trace)
         self.assertEqual(tracer._spans_list, [])
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_finish_with_spans(self):
-        tracer = context_tracer.ContextTracer()
+        tracer = asyncio_context_tracer.ContextTracer()
         tracer.start_span('span')
         tracer.finish()
 
         self.assertEqual(tracer._spans_list, [])
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_end_leftover_spans(self):
-        tracer = context_tracer.ContextTracer()
+        tracer = asyncio_context_tracer.ContextTracer()
         tracer._spans_list = [span.Span(name='span')]
         tracer.finish()
 
         self.assertEqual(tracer._spans_list, [])
 
-    @mock.patch.object(context_tracer.ContextTracer, 'current_span')
+    @pytest.mark.asyncio
+    @asyncio.coroutine
+    @mock.patch.object(asyncio_context_tracer.ContextTracer, 'current_span')
     def test_start_span(self, current_span_mock):
         from opencensus.trace import span_context
 
@@ -85,7 +104,7 @@ class TestContextTracer(unittest.TestCase):
         mock_span = mock.Mock()
         mock_span.span_id = span_id
         span_context = span_context.SpanContext(span_id=span_id)
-        tracer = context_tracer.ContextTracer(span_context=span_context)
+        tracer = asyncio_context_tracer.ContextTracer(span_context=span_context)
         current_span_mock.return_value = mock_span
 
         span = tracer.start_span(name=span_name)
@@ -95,7 +114,9 @@ class TestContextTracer(unittest.TestCase):
         self.assertEqual(len(tracer._spans_list), 1)
         self.assertEqual(span_context.span_id, span.span_id)
 
-    @mock.patch.object(context_tracer.ContextTracer, 'current_span')
+    @pytest.mark.asyncio
+    @asyncio.coroutine
+    @mock.patch.object(asyncio_context_tracer.ContextTracer, 'current_span')
     def test_span(self, current_span_mock):
         from opencensus.trace import span_context
 
@@ -104,7 +125,7 @@ class TestContextTracer(unittest.TestCase):
         mock_span = mock.Mock()
         mock_span.span_id = span_id
         span_context = span_context.SpanContext(span_id=span_id)
-        tracer = context_tracer.ContextTracer(span_context=span_context)
+        tracer = asyncio_context_tracer.ContextTracer(span_context=span_context)
         current_span_mock.return_value = mock_span
 
         span = tracer.span(name=span_name)
@@ -114,9 +135,11 @@ class TestContextTracer(unittest.TestCase):
         self.assertEqual(len(tracer._spans_list), 1)
         self.assertEqual(span_context.span_id, span.span_id)
 
-    @mock.patch.object(context_tracer.ContextTracer, 'current_span')
+    @pytest.mark.asyncio
+    @asyncio.coroutine
+    @mock.patch.object(asyncio_context_tracer.ContextTracer, 'current_span')
     def test_end_span_no_active_span(self, mock_current_span):
-        tracer = context_tracer.ContextTracer()
+        tracer = asyncio_context_tracer.ContextTracer()
         mock_current_span.return_value = None
         self.assertIsNone(tracer.current_span())
 
@@ -124,10 +147,12 @@ class TestContextTracer(unittest.TestCase):
 
         self.assertIsNone(tracer.current_span())
 
-    @mock.patch.object(context_tracer.ContextTracer, 'current_span')
+    @pytest.mark.asyncio
+    @asyncio.coroutine
+    @mock.patch.object(asyncio_context_tracer.ContextTracer, 'current_span')
     def test_end_span_active(self, mock_current_span):
         exporter = mock.Mock()
-        tracer = context_tracer.ContextTracer(exporter=exporter)
+        tracer = asyncio_context_tracer.ContextTracer(exporter=exporter)
         mock_span = mock.Mock()
         mock_span.name = 'span'
         mock_span.children = []
@@ -147,11 +172,13 @@ class TestContextTracer(unittest.TestCase):
         self.assertEqual(tracer.span_context.span_id, parent_span_id)
         self.assertFalse(tracer.exporter.export.called)
 
-    @mock.patch.object(context_tracer.ContextTracer, 'current_span')
+    @pytest.mark.asyncio
+    @asyncio.coroutine
+    @mock.patch.object(asyncio_context_tracer.ContextTracer, 'current_span')
     def test_end_span_without_parent(self, mock_current_span):
-        from opencensus.trace.execution_context import get_current_span
+        from qubit.opencensus.trace.asyncio_context import get_current_span
 
-        tracer = context_tracer.ContextTracer()
+        tracer = asyncio_context_tracer.ContextTracer()
         mock_span = mock.Mock()
         mock_span.name = 'span'
         mock_span.children = []
@@ -168,9 +195,11 @@ class TestContextTracer(unittest.TestCase):
         cur_span = get_current_span()
         self.assertIsNone(cur_span)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_end_span_batch_export(self):
         exporter = mock.Mock()
-        tracer = context_tracer.ContextTracer(exporter=exporter)
+        tracer = asyncio_context_tracer.ContextTracer(exporter=exporter)
         span = tracer.start_span('test')
         parent_span_id = '6e0c63257de34c92'
         span.parent_span.span_id = parent_span_id
@@ -181,8 +210,10 @@ class TestContextTracer(unittest.TestCase):
         self.assertEqual(tracer.span_context.span_id, parent_span_id)
         self.assertTrue(tracer.exporter.export.called)
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_list_collected_spans(self):
-        tracer = context_tracer.ContextTracer()
+        tracer = asyncio_context_tracer.ContextTracer()
         span1 = mock.Mock()
         span2 = mock.Mock()
         tracer._spans_list.append(span1)
@@ -192,15 +223,17 @@ class TestContextTracer(unittest.TestCase):
 
         self.assertEqual(spans, [span1, span2])
 
+    @pytest.mark.asyncio
+    @asyncio.coroutine
     def test_add_attribute_to_current_span(self):
         from opencensus.trace.span import Span
-        from opencensus.trace import execution_context
+        from qubit.opencensus.trace import asyncio_context
 
-        tracer = context_tracer.ContextTracer()
+        tracer = asyncio_context_tracer.ContextTracer()
         span1 = mock.Mock(spec=Span)
 
         span1.attributes = {}
-        execution_context.set_current_span(span1)
+        asyncio_context.set_current_span(span1)
 
         attribute_key = 'key'
         attribute_value = 'value'

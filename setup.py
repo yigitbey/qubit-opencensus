@@ -29,7 +29,7 @@ namespaces = ['qubit']
 
 setup(
     name='qubit-opencensus',
-    version='0.1.0',
+    version='0.1.1',
     author='Qubit',
     author_email='tristan@qubit.com',
     classifiers=[
@@ -41,7 +41,7 @@ setup(
         'Programming Language :: Python :: 3',
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.6'
     ],
     description='Various extensions for OpenCensus',
     include_package_data=True,

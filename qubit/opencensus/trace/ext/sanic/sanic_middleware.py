@@ -14,22 +14,19 @@
 
 import inspect
 import logging
-import sys
 
 from sanic.exceptions import SanicException
 
-from google.rpc import code_pb2
-
 from opencensus.trace import attributes_helper
-from opencensus.trace import stack_trace
-from opencensus.trace import status
 from opencensus.trace.exporters import print_exporter
 from opencensus.trace.exporters.transports import sync
 from opencensus.trace.ext import utils
 from opencensus.trace.propagation import google_cloud_format
 from opencensus.trace.samplers import always_on, probability
 from qubit.opencensus.trace import asyncio_context
-from qubit.opencensus.trace.tracers import asyncio_context_tracer as tracer_module
+from qubit.opencensus.trace.tracers import (
+    asyncio_context_tracer as tracer_module
+)
 
 
 _SANIC_TRACE_HEADER = 'X_CLOUD_TRACE_CONTEXT'

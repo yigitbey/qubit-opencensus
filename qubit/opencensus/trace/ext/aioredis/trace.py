@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import logging
-import aioredis
 import wrapt
 
 from qubit.opencensus.trace import asyncio_context
@@ -43,7 +42,7 @@ async def wrap_execute(wrapped, instance, args, kwargs):
     try:
         result = await wrapped(*args, **kwargs)
         _span.finish()
-    except Exception as e: 
+    except Exception as e:
         _span.add_attribute('error', True)
         _span.add_attribute('error.message', str(e))
         _span.finish()

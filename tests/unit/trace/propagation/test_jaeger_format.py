@@ -14,7 +14,7 @@
 
 import unittest
 
-from opencensus.trace.propagation import jaeger_format
+from qubit.opencensus.trace.propagation import jaeger_format
 
 
 class TestJaegerFormatPropagator(unittest.TestCase):

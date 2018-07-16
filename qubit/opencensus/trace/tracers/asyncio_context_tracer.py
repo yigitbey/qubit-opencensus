@@ -182,6 +182,7 @@ def span(name=None):
                 return await func(*args, **params)
             else:
                 return func(*args, **params)
+
         async def helper(*args, **params):
             _tracer = asyncio_context.get_opencensus_tracer()
             _span = _tracer.start_span()
@@ -199,5 +200,3 @@ def span(name=None):
 
         return helper
     return span_decorator
-
-

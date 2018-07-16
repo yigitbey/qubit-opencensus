@@ -13,8 +13,11 @@
 # limitations under the License.
 
 import aiotask_context as context
+import logging
 
 from opencensus.trace.tracers import noop_tracer
+
+log = logging.getLogger(__name__)
 
 _TRACER_KEY = 'opencensus.io/trace'
 _ATTRS_KEY = 'opencensus.io/attrs'
@@ -22,7 +25,11 @@ _CURRENT_SPAN_KEY = 'opencensus.io/current-span'
 
 
 def get_opencensus_tracer():
-    return context.get(_TRACER_KEY, default=noop_tracer.NoopTracer())
+    try:
+        return context.get(_TRACER_KEY, default=noop_tracer.NoopTracer())
+    except BaseException as err:
+        log.warn('failed to get context tracer, defaulting to noop')
+        return noop_tracer.NoopTracer()
 
 
 def set_opencensus_tracer(tracer):
