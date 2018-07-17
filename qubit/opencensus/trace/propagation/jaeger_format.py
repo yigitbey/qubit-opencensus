@@ -18,7 +18,7 @@ import re
 from opencensus.trace.span_context import SpanContext
 from opencensus.trace.trace_options import TraceOptions
 
-_UBER_HEADER_NAME = 'uber-trace-id'
+_UBER_HEADER_NAME = 'Uber-Trace-Id'
 _UBER_HEADER_FORMAT = '([0-9a-f]{0,32})\:([0-9a-f]{0,16})\:([0-9a-f]{0,16})\:([0-9a-f]{1,2})'
 _UBER_HEADER_RE = re.compile(_UBER_HEADER_FORMAT)
 
@@ -77,11 +77,11 @@ class JaegerFormatPropagator(object):
         :rtype: :class:`~opencensus.trace.span_context.SpanContext`
         :returns: SpanContext generated from the trace context header.
         """
-        if headers is None:
-            return SpanContext()
-        if _UBER_HEADER_NAME not in headers:
-            return SpanContext()
-        return self.from_header(headers[_UBER_HEADER_NAME])
+        for name in headers:
+            if name.lower() == _UBER_HEADER_NAME.lower():
+                return self.from_header(headers[name])
+
+        return SpanContext()
 
     def to_header(self, span_context):
         """Convert a SpanContext object to header string.
