@@ -158,69 +158,43 @@ class SanicMiddleware(object):
         async def trace_response(request, response):
             self.do_trace_response(request, response)
 
-        @app.exception(SanicException)
-        async def trace_exception(request, exception):
-            self.do_trace_exception(request, exception)
-
     def do_trace_request(self, request):
         if utils.disable_tracing_url(request.url, self.blacklist_paths):
             return
 
-        try:
-            span_context = self.propagator.from_headers(request.headers)
-            tracer = tracer_module.ContextTracer(
-                span_context=span_context,
-                exporter=self.exporter)
+        span_context = self.propagator.from_headers(request.headers)
+        tracer = tracer_module.ContextTracer(
+            span_context=span_context,
+            exporter=self.exporter)
 
-            span = tracer.start_span()
+        span = tracer.start_span()
 
-            # Set the span name as the name of the current module name
-            span.name = '[{}]{}'.format(
-                request.method,
-                request.url)
-            tracer.add_attribute_to_current_span(
-                HTTP_METHOD, request.method)
-            tracer.add_attribute_to_current_span(HTTP_URL, request.url)
-            request['tracer'] = tracer
-            request['span'] = span
-            asyncio_context.set_opencensus_tracer(tracer)
-        except Exception:  # pragma: NO COVER
-            log.error('Failed to trace request', exc_info=True)
+        # Set the span name as the name of the current module name
+        span.name = '[{}]{}'.format(
+            request.method,
+            request.url)
+        tracer.add_attribute_to_current_span(
+            HTTP_METHOD, request.method)
+        tracer.add_attribute_to_current_span(HTTP_URL, request.url)
+        request['tracer'] = tracer
+        asyncio_context.set_opencensus_tracer(tracer)
 
     def do_trace_response(self, request, response):
         """A function to be run after each request.
         """
         # Do not trace if the url is blacklisted
         if utils.disable_tracing_url(request.url, self.blacklist_paths):
-            return response
-
-        try:
-            tracer = request['tracer']
-            span = request['span']
-            tracer.add_attribute_to_current_span(
-                HTTP_STATUS_CODE,
-                str(response.status))
-            if response.status >= 500:
-                tracer.add_attribute_to_current_span('error', True)
-
-            tracer.end_span()
-            tracer.finish()
-        except Exception:  # pragma: NO COVER
-            log.error('Failed to trace request', exc_info=True)
-
-    def do_trace_exception(self, request, exception):
-        # Do not trace if the url is blacklisted
-        if utils.disable_tracing_url(request.url, self.blacklist_paths):
             return
 
-        try:
-            tracer = request['tracer']
-            span = request['span']
-            if exception is not None:
-                tracer.add_attribute('error', True)
-                tracer.add_attribute('error.message', str(exception))
+        if 'tracer' not in request:
+            return
 
-            tracer.end_span()
-            tracer.finish()
-        except Exception:  # pragma: NO COVER
-            log.error('Failed to trace request', exc_info=True)
+        tracer = request['tracer']
+        tracer.add_attribute_to_current_span(
+            HTTP_STATUS_CODE,
+            str(response.status))
+        if response.status >= 500:
+            tracer.add_attribute_to_current_span('error', True)
+
+        tracer.end_span()
+        tracer.finish()

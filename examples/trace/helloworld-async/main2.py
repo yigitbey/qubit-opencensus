@@ -34,7 +34,8 @@ middleware = SanicMiddleware(
                 app, 
                 sampler=sampler,
                 exporter=exporter,
-                propagator=propagator)
+                propagator=propagator,
+                blacklist_paths=["status","metrics"])
 
 @asyncio_context_tracer.span()
 async def somefunc():
