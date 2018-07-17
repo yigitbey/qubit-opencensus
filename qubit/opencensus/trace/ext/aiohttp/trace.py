@@ -40,7 +40,7 @@ def wrap_aiohttp(aiohttp_func, propagator=None):
 
             _span = _tracer.start_span()
             _span.name = '[aiohttp]{}'.format(args[1])
-            _span.add_attribute('aiohttp/url', str(args[2]))
+            _tracer.add_attribute_to_current_span('aiohttp/url', str(args[2]))
 
             if propagator is not None:
                 span_context = _span.context_tracer.span_context
@@ -53,24 +53,24 @@ def wrap_aiohttp(aiohttp_func, propagator=None):
             try:
                 response = await aiohttp_func(*args, **kwargs)
 
-                _span.add_attribute(
+                _tracer.add_attribute_to_current_span(
                     'aiohttp/status_code', str(response.status))
-                _span.add_attribute(
+                _tracer.add_attribute_to_current_span(
                     'aiohttp/status_reason', str(response.reason))
 
                 if response.status >= 500:
-                    _span.add_attribute(
+                    _tracer.add_attribute_to_current_span(
                         'aiohttp/error', True)
 
-                _span.finish()
+                _tracer.end_span()
 
                 return response
             except Exception as e:
-                _span.add_attribute(
+                _tracer.add_attribute_to_current_span(
                     'aiohttp/error', True)
-                _span.add_attribute(
+                _tracer.add_attribute_to_current_span(
                     'aiohttp/error,message', str(e))
-                _span.finish()
+                _tracer.end_span()
                 raise e
 
     return call

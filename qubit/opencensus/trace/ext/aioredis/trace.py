@@ -44,11 +44,11 @@ async def wrap_execute(wrapped, instance, args, kwargs):
     # Add the requests url to attributes
     try:
         result = await wrapped(*args, **kwargs)
-        _span.finish()
+        _tracer.end_span()
+        return result
     except Exception as e:
-        _span.add_attribute('error', True)
-        _span.add_attribute('error.message', str(e))
-        _span.finish()
+        _tracer.add_attribute_to_current_span('error', True)
+        _tracer.add_attribute_to_current_span('error.message', str(e))
+        _tracer.end_span()
         raise e
 
-    return result

@@ -47,9 +47,9 @@ async def root(req):
    with tracer.span(name='span1') as span1:
        with tracer.span(name='span2') as span2:
             async with aiohttp.ClientSession() as session:
-                async with session.get("http://localhost:8080") as response:
-                    print (response)
-                    return json({"hello": await somefunc()})
+                result = await session.get("http://localhost:8080")
+                result2 = await session.get("http://localhost:8080")
+                return json({"hello": await somefunc()})
 
 
 def main():

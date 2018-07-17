@@ -178,9 +178,9 @@ class SanicMiddleware(object):
             span.name = '[{}]{}'.format(
                 request.method,
                 request.url)
-            span.add_attribute(
+            tracer.add_attribute_to_current_span(
                 HTTP_METHOD, request.method)
-            span.add_attribute(HTTP_URL, request.url)
+            tracer.add_attribute_to_current_span(HTTP_URL, request.url)
             request['tracer'] = tracer
             request['span'] = span
             asyncio_context.set_opencensus_tracer(tracer)
@@ -197,13 +197,13 @@ class SanicMiddleware(object):
         try:
             tracer = request['tracer']
             span = request['span']
-            span.add_attribute(
+            tracer.add_attribute_to_current_span(
                 HTTP_STATUS_CODE,
                 str(response.status))
             if response.status >= 500:
-                span.add_attribute('error', True)
+                tracer.add_attribute_to_current_span('error', True)
 
-            span.finish()
+            tracer.end_span()
             tracer.finish()
         except Exception:  # pragma: NO COVER
             log.error('Failed to trace request', exc_info=True)
@@ -217,10 +217,10 @@ class SanicMiddleware(object):
             tracer = request['tracer']
             span = request['span']
             if exception is not None:
-                span.add_attribute('error', True)
-                span.add_attribute('error.message', str(exception))
+                tracer.add_attribute('error', True)
+                tracer.add_attribute('error.message', str(exception))
 
-            span.finish()
+            tracer.end_span()
             tracer.finish()
         except Exception:  # pragma: NO COVER
             log.error('Failed to trace request', exc_info=True)
