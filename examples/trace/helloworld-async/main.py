@@ -3,9 +3,9 @@
 from sanic import Sanic
 from sanic.exceptions import SanicException, InvalidUsage
 from sanic.response import json
-from opencensus.trace.exporters import jaeger_exporter
 from opencensus.trace.samplers import probability
 from qubit.opencensus.trace import asyncio_context
+from qubit.opencensus.trace.exporters import jaeger_exporter
 from qubit.opencensus.trace.ext.aiohttp.trace import trace_integration as aiohttp_integration
 from qubit.opencensus.trace.ext.aioredis.trace import trace_integration as aioredis_integration
 from qubit.opencensus.trace.ext.sanic.sanic_middleware import SanicMiddleware
@@ -48,8 +48,10 @@ async def root(req):
    with tracer.span(name='span1') as span1:
        with tracer.span(name='span2') as span2:
             async with aiohttp.ClientSession() as session:
-                async with session.get("https://slashdot.org") as response:
-                    return json({"hello": "world"})
+                response = await conn.execute("get", "foo")
+                print(response)
+                response = await session.get("https://slashdot.org")
+                return json({"hello": "world"})
 
 
 

@@ -57,7 +57,7 @@ class JaegerFormatPropagator(object):
             trace_options = match.group(4)
 
             span_context = SpanContext(
-                trace_id='{0:0<32}'.format(trace_id),
+                trace_id=trace_id.zfill(32),
                 span_id=span_id.zfill(16),
                 trace_options=TraceOptions(str(int('0x' + trace_options, 16))),
                 from_header=True)
