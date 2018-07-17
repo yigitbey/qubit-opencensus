@@ -18,9 +18,8 @@ import re
 from opencensus.trace.span_context import SpanContext
 from opencensus.trace.trace_options import TraceOptions
 
-_UBER_HEADER_NAME = 'UBER_TRACE_ID'
-_UBER_HEADER_FORMAT = ('([0-9a-f]{0,32}|)\:([0-9a-f]{0,16})\:'
-                       '([0-9a-f]{0,16}|)\:([0-9a-f]{1,2})')
+_UBER_HEADER_NAME = 'uber-trace-id'
+_UBER_HEADER_FORMAT = '([0-9a-f]{0,32})\:([0-9a-f]{0,16})\:([0-9a-f]{0,16})\:([0-9a-f]{1,2})'
 _UBER_HEADER_RE = re.compile(_UBER_HEADER_FORMAT)
 
 
@@ -45,21 +44,21 @@ class JaegerFormatPropagator(object):
             return SpanContext()
 
         try:
-            match = re.search(_UBER_HEADER_RE, header)
+            match = re.match(_UBER_HEADER_RE, header)
         except TypeError:
             logging.warning(
                 'Header should be str, got {}. Cannot parse the header.'
                 .format(header.__class__.__name__))
             raise
 
-        if match:
+        if match is not None:
             trace_id = match.group(1)
             span_id = match.group(2)
             trace_options = match.group(4)
 
             span_context = SpanContext(
-                trace_id=trace_id,
-                span_id=span_id,
+                trace_id=trace_id.zfill(32),
+                span_id=span_id.zfill(16),
                 trace_options=TraceOptions(str(int('0x' + trace_options, 16))),
                 from_header=True)
             return span_context
