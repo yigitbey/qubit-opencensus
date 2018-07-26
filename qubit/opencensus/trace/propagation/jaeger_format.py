@@ -41,7 +41,7 @@ class JaegerFormatPropagator(object):
         :returns: SpanContext generated from the trace context header.
         """
         if header is None:
-            return SpanContext()
+            return SpanContext(trace_options=TraceOptions('0'))
 
         try:
             match = re.match(_UBER_HEADER_RE, header)
@@ -66,7 +66,7 @@ class JaegerFormatPropagator(object):
             logging.warning(
                 'Cannot parse the header {}, generate a new context instead.'
                 .format(header))
-            return SpanContext()
+            return SpanContext(trace_options=TraceOptions('0'))
 
     def from_headers(self, headers):
         """Generate a SpanContext object using the trace context header.
@@ -81,7 +81,7 @@ class JaegerFormatPropagator(object):
             if name.lower() == _UBER_HEADER_NAME.lower():
                 return self.from_header(headers[name])
 
-        return SpanContext()
+        return SpanContext(trace_options=TraceOptions('0'))
 
     def to_header(self, span_context):
         """Convert a SpanContext object to header string.
@@ -113,6 +113,9 @@ class JaegerFormatPropagator(object):
         :rtype: dict
         :returns: Trace context headers in google cloud format.
         """
+        if span_context is None:
+           return {}
+
         return {
             _UBER_HEADER_NAME: self.to_header(span_context),
         }

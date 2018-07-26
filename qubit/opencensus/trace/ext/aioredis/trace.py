@@ -39,11 +39,21 @@ async def wrap_execute(wrapped, instance, args, kwargs):
         return await wrapped(*args, **kwargs)
 
     _span = _tracer.start_span()
-    _span.name = '[aioredis]{}'.format(command)
+    _span.name = '[aioredis] {}'.format(command)
+
+    _tracer.add_attribute_to_current_span('redis.db', instance.db)
+    _tracer.add_attribute_to_current_span('redis.address', instance.address[0])
+    _tracer.add_attribute_to_current_span('redis.port', instance.address[1])
+    _tracer.add_attribute_to_current_span('redis.encoding',
+            str(instance.encoding))
+    if len(args) > 1:
+        _tracer.add_attribute_to_current_span('redis.key', args[1])
 
     # Add the requests url to attributes
     try:
         result = await wrapped(*args, **kwargs)
+        _tracer.add_attribute_to_current_span('redis.resposne.size',
+                len(result))
         _tracer.end_span()
         return result
     except Exception as e:

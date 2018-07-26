@@ -21,27 +21,19 @@ from opencensus.trace import attributes_helper
 from opencensus.trace.exporters import print_exporter
 from opencensus.trace.exporters.transports import sync
 from opencensus.trace.ext import utils
-from opencensus.trace.propagation import google_cloud_format
 from opencensus.trace.samplers import always_on, probability
+from opencensus.trace.tracers import (
+    noop_tracer as noop_tracer_module
+)
 from qubit.opencensus.trace import asyncio_context
+from qubit.opencensus.trace.propagation import jaeger_format
 from qubit.opencensus.trace.tracers import (
-    asyncio_context_tracer as tracer_module
+    asyncio_context_tracer as tracer_module,
 )
 
 
-_SANIC_TRACE_HEADER = 'X_CLOUD_TRACE_CONTEXT'
-
-HTTP_METHOD = attributes_helper.COMMON_ATTRIBUTES['HTTP_METHOD']
-HTTP_URL = attributes_helper.COMMON_ATTRIBUTES['HTTP_URL']
-HTTP_STATUS_CODE = attributes_helper.COMMON_ATTRIBUTES['HTTP_STATUS_CODE']
-
 BLACKLIST_PATHS = 'BLACKLIST_PATHS'
-GCP_EXPORTER_PROJECT = 'GCP_EXPORTER_PROJECT'
 SAMPLING_RATE = 'SAMPLING_RATE'
-TRANSPORT = 'TRANSPORT'
-ZIPKIN_EXPORTER_SERVICE_NAME = 'ZIPKIN_EXPORTER_SERVICE_NAME'
-ZIPKIN_EXPORTER_HOST_NAME = 'ZIPKIN_EXPORTER_HOST_NAME'
-ZIPKIN_EXPORTER_PORT = 'ZIPKIN_EXPORTER_PORT'
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +41,7 @@ log = logging.getLogger(__name__)
 class SanicMiddleware(object):
     DEFAULT_SAMPLER = always_on.AlwaysOnSampler
     DEFAULT_EXPORTER = print_exporter.PrintExporter
-    DEFAULT_PROPAGATOR = google_cloud_format.GoogleCloudFormatPropagator
+    DEFAULT_PROPAGATOR = jaeger_format.JaegerFormatPropagator
 
     """sanic middleware to automatically trace requests.
 
@@ -121,28 +113,11 @@ class SanicMiddleware(object):
         else:
             self.sampler = self.sampler()
 
-        transport = params.get(TRANSPORT, sync.SyncTransport)
+        transport = sync.SyncTransport
 
         # Initialize the exporter
         if not inspect.isclass(self.exporter):
             pass  # handling of instantiated exporter
-        elif self.exporter.__name__ == 'StackdriverExporter':
-            _project_id = params.get(GCP_EXPORTER_PROJECT, None)
-            self.exporter = self.exporter(
-                project_id=_project_id,
-                transport=transport)
-        elif self.exporter.__name__ == 'ZipkinExporter':
-            _zipkin_service_name = params.get(
-                ZIPKIN_EXPORTER_SERVICE_NAME, 'my_service')
-            _zipkin_host_name = params.get(
-                ZIPKIN_EXPORTER_HOST_NAME, 'localhost')
-            _zipkin_port = params.get(
-                ZIPKIN_EXPORTER_PORT, 9411)
-            self.exporter = self.exporter(
-                service_name=_zipkin_service_name,
-                host_name=_zipkin_host_name,
-                port=_zipkin_port,
-                transport=transport)
         else:
             self.exporter = self.exporter(transport=transport)
 
@@ -163,20 +138,39 @@ class SanicMiddleware(object):
             return
 
         span_context = self.propagator.from_headers(request.headers)
-        tracer = tracer_module.ContextTracer(
-            span_context=span_context,
-            exporter=self.exporter)
+
+        sample = span_context.trace_options.enabled
+        tracer = noop_tracer_module.NoopTracer()
+
+        if sample or self.sampler.should_sample(span_context.trace_id):
+            tracer = tracer_module.ContextTracer(
+                span_context=span_context,
+                exporter=self.exporter)
 
         span = tracer.start_span()
 
+        route = request.app.router.get(request)
         # Set the span name as the name of the current module name
-        span.name = '[{}]{}'.format(
+        span.name = '[sanic] {} {}'.format(
             request.method,
-            request.url)
+            route[3])
         tracer.add_attribute_to_current_span(
-            HTTP_METHOD, request.method)
-        tracer.add_attribute_to_current_span(HTTP_URL, request.url)
+            'http.nethod', request.method)
+        tracer.add_attribute_to_current_span(
+            'http.host', request.host)
+        tracer.add_attribute_to_current_span(
+            'http.scheme', request.scheme)
+        tracer.add_attribute_to_current_span('http.url', request.url)
+        tracer.add_attribute_to_current_span(
+            'http.client.ip', request.ip)
+
+        for header in ['user-agent','x-forwarded-for','x-real-ip']:
+            if header in request.headers:
+                tracer.add_attribute_to_current_span(
+                    'http.headers.'+header, request.headers[header])
+
         request['tracer'] = tracer
+
         asyncio_context.set_opencensus_tracer(tracer)
 
     def do_trace_response(self, request, response):
@@ -185,13 +179,12 @@ class SanicMiddleware(object):
         # Do not trace if the url is blacklisted
         if utils.disable_tracing_url(request.url, self.blacklist_paths):
             return
-
         if 'tracer' not in request:
             return
 
         tracer = request['tracer']
         tracer.add_attribute_to_current_span(
-            HTTP_STATUS_CODE,
+            'http.status_code',
             str(response.status))
         if response.status >= 500:
             tracer.add_attribute_to_current_span('error', True)
