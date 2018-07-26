@@ -32,6 +32,8 @@ DEFAULT_AGENT_PORT = 6831
 DEFAULT_ENDPOINT = '/api/traces?format=jaeger.thrift'
 
 ISO_DATETIME_REGEX = '%Y-%m-%dT%H:%M:%S.%fZ'
+ISO_DATETIME_REGEX2 = '%Y-%m-%dT%H:%M:%SZ'
+
 UDP_PACKET_MAX_LENGTH = 65000
 
 logging = logging.getLogger(__name__)
@@ -176,14 +178,12 @@ class JaegerExporter(base.Exporter):
         jaeger_spans = []
 
         for span in span_datas:
-            start_datetime = datetime.datetime.strptime(
-                span.start_time, ISO_DATETIME_REGEX)
+            start_datetime = _strptime(span.start_time)
             start_microsec = calendar.timegm(start_datetime.timetuple()) \
                 * 1e6 \
                 + start_datetime.microsecond
 
-            end_datetime = datetime.datetime.strptime(
-                span.end_time, ISO_DATETIME_REGEX)
+            end_datetime = _strptime(span.end_time)
             end_microsec = calendar.timegm(end_datetime.timetuple()) \
                 * 1e6 \
                 + end_datetime.microsecond
@@ -271,6 +271,12 @@ def _convert_hex_str_to_int(val):
     return hex_num
 
 
+def _strptime(time_str):
+    try:
+        return datetime.datetime.strptime(time_str, ISO_DATETIME_REGEX)
+    except ValueError:
+        return datetime.datetime.strptime(time_str, ISO_DATETIME_REGEX2)
+
 def _extract_logs_from_span(span):
     if span.time_events is None:
         return None
@@ -285,8 +291,7 @@ def _extract_logs_from_span(span):
             vType=jaeger.TagType.STRING,
             vStr=annotation.description))
 
-        event_time = datetime.datetime.strptime(
-            time_event.timestamp, ISO_DATETIME_REGEX)
+        event_time = _strptime(time_event.timestamp)
         timestamp = calendar.timegm(event_time.timetuple()) * 1000
 
         logs.append(jaeger.Log(timestamp=timestamp, fields=fields))
