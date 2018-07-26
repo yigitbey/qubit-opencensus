@@ -52,8 +52,12 @@ async def wrap_execute(wrapped, instance, args, kwargs):
     # Add the requests url to attributes
     try:
         result = await wrapped(*args, **kwargs)
-        _tracer.add_attribute_to_current_span('redis.resposne.size',
-                len(result))
+        if isinstance(result, bytes):
+            _tracer.add_attribute_to_current_span('redis.resposne.size',
+                    len(result))
+        else:
+            _tracer.add_attribute_to_current_span('redis.resposne.size',
+                    0)
         _tracer.end_span()
         return result
     except Exception as e:
