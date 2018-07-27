@@ -17,6 +17,7 @@
 import calendar
 import datetime
 import logging
+import platform
 import socket
 
 from thrift.protocol import TBinaryProtocol, TCompactProtocol
@@ -81,6 +82,7 @@ class JaegerExporter(base.Exporter):
     def __init__(
             self,
             service_name='my_service',
+            tags={},
             host_name=None,
             port=None,
             username=None,
@@ -101,6 +103,10 @@ class JaegerExporter(base.Exporter):
         self.password = password
         self._agent_client = None
         self._collector = None
+        self.tags = tags
+
+        if platform.node():
+            self.tags['hostname'] = platform.node()
 
     @property
     def agent_client(self):
@@ -140,10 +146,13 @@ class JaegerExporter(base.Exporter):
             SpanData tuples to emit
         """
         jaeger_spans = self.translate_to_jaeger(span_datas)
+        tags = _extract_tags(self.tags)
 
         batch = jaeger.Batch(
             spans=jaeger_spans,
-            process=jaeger.Process(serviceName=self.service_name))
+            process=jaeger.Process(
+                serviceName=self.service_name,
+                tags=tags))
 
         if self.collector is not None:
             self.collector.export(batch)
