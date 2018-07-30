@@ -18,7 +18,7 @@ import aiohttp
 import aioredis
 
 
-sampler = probability.ProbabilitySampler(rate=0.5)
+sampler = probability.ProbabilitySampler(rate=0.9)
 propagator = jaeger_format.JaegerFormatPropagator()
 exporter = jaeger_exporter.JaegerExporter(service_name="recs")
 
@@ -49,8 +49,8 @@ async def root(req):
    with tracer.span(name='span1') as span1:
        with tracer.span(name='span2') as span2:
             async with aiohttp.ClientSession() as session:
-                response = await req.app.conn.execute("get", "foo")
-#                response = await session.get("https://slashdot.org")
+                response = await req.app.conn.execute("get", "foobar")
+                response = await session.get("https://ifconfig.co")
                 return json({"hello": "world"})
 
 @app.route('/yo')

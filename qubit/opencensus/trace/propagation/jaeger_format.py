@@ -41,7 +41,7 @@ class JaegerFormatPropagator(object):
         :returns: SpanContext generated from the trace context header.
         """
         if header is None:
-            return SpanContext(trace_options=TraceOptions('0'))
+            return SpanContext()
 
         try:
             match = re.match(_UBER_HEADER_RE, header)
@@ -66,7 +66,7 @@ class JaegerFormatPropagator(object):
             logging.warning(
                 'Cannot parse the header {}, generate a new context instead.'
                 .format(header))
-            return SpanContext(trace_options=TraceOptions('0'))
+            return SpanContext()
 
     def from_headers(self, headers):
         """Generate a SpanContext object using the trace context header.
@@ -81,7 +81,7 @@ class JaegerFormatPropagator(object):
             if name.lower() == _UBER_HEADER_NAME.lower():
                 return self.from_header(headers[name])
 
-        return SpanContext(trace_options=TraceOptions('0'))
+        return SpanContext()
 
     def to_header(self, span_context):
         """Convert a SpanContext object to header string.
