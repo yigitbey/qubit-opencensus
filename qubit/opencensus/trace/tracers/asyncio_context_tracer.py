@@ -186,7 +186,7 @@ def span(name=None):
         async def helper(*args, **params):
             _tracer = asyncio_context.get_opencensus_tracer()
             _span = _tracer.start_span()
-            _span.name = name if name is not None else func.__name__
+            _span.name = name if name is not None else ("[func] " + func.__name__)
 
             try:
                 result = await process(func, *args, **params)
