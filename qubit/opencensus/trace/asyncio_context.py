@@ -30,7 +30,10 @@ from opencensus.trace.tracers import (
 default_tracer = noop_tracer.NoopTracer()
 
 def get_opencensus_tracer():
-    return context.get(_TRACER_KEY, default=default_tracer)
+    try:
+        return context.get(_TRACER_KEY, default=default_tracer)
+    except Exception:
+        return default_tracer
 
 
 def set_opencensus_tracer(tracer):
@@ -48,6 +51,7 @@ def get_opencensus_attr(attr_key):
     attrs = context.get(_ATTRS_KEY, None)
     if attrs is not None:
         return attrs.get(_ATTRS_KEY)
+
     return None
 
 
