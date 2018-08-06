@@ -18,7 +18,7 @@ import re
 from opencensus.trace.span_context import SpanContext
 from opencensus.trace.trace_options import TraceOptions
 
-_UBER_HEADER_NAME = 'UBER_TRACE_ID'
+_UBER_HEADER_NAME = 'Uber-Trace-Id'
 _UBER_HEADER_FORMAT = '([0-9a-f]{0,32})\:([0-9a-f]{0,16})\:([0-9a-f]{0,16})\:([0-9a-f]{1,2})'
 _UBER_HEADER_RE = re.compile(_UBER_HEADER_FORMAT)
 
