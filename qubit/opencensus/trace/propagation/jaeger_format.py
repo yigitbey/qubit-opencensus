@@ -28,7 +28,7 @@ class JaegerFormatPropagator(object):
     and generate a SpanContext, or converting a SpanContext to Jaeger's trace
     header.
     """
-    def from_header(self, header):
+    def from_header(self, header=None):
         """Generate a SpanContext object using the trace context header.
         The value of enabled parsed from header is int. Need to convert to
         bool.
@@ -68,7 +68,7 @@ class JaegerFormatPropagator(object):
                 .format(header))
             return SpanContext()
 
-    def from_headers(self, headers):
+    def from_headers(self, headers=None):
         """Generate a SpanContext object using the trace context header.
 
         :type headers: dict
@@ -77,6 +77,9 @@ class JaegerFormatPropagator(object):
         :rtype: :class:`~opencensus.trace.span_context.SpanContext`
         :returns: SpanContext generated from the trace context header.
         """
+        if headers is None:
+            return SpanContext()
+
         for name in headers:
             if name.lower() == _UBER_HEADER_NAME.lower():
                 return self.from_header(headers[name])

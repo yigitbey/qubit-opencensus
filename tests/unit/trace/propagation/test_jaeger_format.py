@@ -89,7 +89,7 @@ class TestJaegerFormatPropagator(unittest.TestCase):
     def test_headers_match(self):
         # Trace option is enabled.
         headers = {
-            'UBER_TRACE_ID':
+            'Uber-Trace-Id':
             '6e0c63257de34c92bf9efcd03927272e:00f067aa0ba902b7::01',
         }
         expected_trace_id = '6e0c63257de34c92bf9efcd03927272e'
@@ -136,7 +136,7 @@ class TestJaegerFormatPropagator(unittest.TestCase):
 
         headers = propagator.to_headers(span_context)
         expected_headers = {
-            'UBER_TRACE_ID': '{}:{}::{:02x}'.format(trace_id, span_id, int(1)),
+            'Uber-Trace-Id': '{}:{}::{:02x}'.format(trace_id, span_id, int(1)),
         }
 
         self.assertEqual(headers, expected_headers)
