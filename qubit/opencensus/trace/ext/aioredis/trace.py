@@ -16,6 +16,8 @@ import logging
 import wrapt
 
 from qubit.opencensus.trace import asyncio_context
+from opencensus.trace import span as trace_span
+from opencensus.trace.tracers.noop_tracer import NoopTracer
 
 log = logging.getLogger(__name__)
 
@@ -35,34 +37,34 @@ async def wrap_execute(wrapped, instance, args, kwargs):
     """Wrap the session function to trace it."""
     command = args[0]
     _tracer = asyncio_context.get_opencensus_tracer()
-    if _tracer is None:
+
+    if _tracer is None or isinstance(_tracer, NoopTracer):
         return await wrapped(*args, **kwargs)
 
-    _span = _tracer.start_span()
-    _span.name = '[aioredis] {}'.format(command)
-
-    _tracer.add_attribute_to_current_span('redis.db', instance.db)
-    _tracer.add_attribute_to_current_span('redis.address', instance.address[0])
-    _tracer.add_attribute_to_current_span('redis.port', instance.address[1])
-    _tracer.add_attribute_to_current_span('redis.encoding',
+    parent_span = _tracer.current_span()
+    _span = parent_span.span(name='[aioredis] {}'.format(command))
+    _span.add_attribute('redis.db', instance.db)
+    _span.add_attribute('redis.address', instance.address[0])
+    _span.add_attribute('redis.port', instance.address[1])
+    _span.add_attribute('redis.encoding',
             str(instance.encoding))
     if len(args) > 1:
-        _tracer.add_attribute_to_current_span('redis.key', args[1])
+        _span.add_attribute('redis.key', args[1])
 
     # Add the requests url to attributes
     try:
+        _span.start()
         result = await wrapped(*args, **kwargs)
         if isinstance(result, bytes):
-            _tracer.add_attribute_to_current_span('redis.resposne.size',
+            _span.add_attribute('redis.resposne.size',
                     len(result))
         else:
-            _tracer.add_attribute_to_current_span('redis.resposne.size',
+            _span.add_attribute('redis.resposne.size',
                     0)
-        _tracer.end_span()
         return result
     except Exception as e:
-        _tracer.add_attribute_to_current_span('error', True)
-        _tracer.add_attribute_to_current_span('error.message', str(e))
-        _tracer.end_span()
-        raise e
-
+        _span.add_attribute('error', True)
+        _span.add_attribute('error.message', str(e))
+        raise(e)
+    finally:
+        _span.finish()
