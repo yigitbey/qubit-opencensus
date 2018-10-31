@@ -100,7 +100,7 @@ class JaegerFormatPropagator(object):
         span_id = span_context.span_id
         trace_options = span_context.trace_options.trace_options_byte
 
-        header = '{}:{}::{:02x}'.format(
+        header = '{}:{}:0:{:02x}'.format(
             trace_id,
             span_id,
             int(trace_options))
