@@ -29,7 +29,7 @@ namespaces = ['qubit']
 
 setup(
     name='qubit-opencensus',
-    version='0.1.15',
+    version='0.1.17',
     author='Qubit',
     author_email='tristan@qubit.com',
     classifiers=[
